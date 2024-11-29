@@ -1,0 +1,191 @@
+---
+title: "SUR"
+author: "Muti"
+date: "11/17/2024"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# Load library
+library(systemfit)
+library(car)
+library(ggplot2)
+library(tidyr)
+```
+```{r}
+# Import dataset
+dataset <- read.csv("C:/Users/yunit/Downloads/data.csv")  # Ganti "data.csv" dengan path file Anda
+
+# Lihat struktur dataset
+str(dataset)
+
+# Pastikan dataset memiliki kolom yang sesuai
+head(dataset)
+```
+```{r}
+# Menghapus kolom dengan nama tertentu
+# Menghapus kolom pertama
+dataset <- dataset[ , -1]
+
+
+dataset <- lapply(dataset, function(x) log(x + 1))
+# Mengonversi data menjadi data.frame
+dataset <- as.data.frame(dataset)
+
+head(dataset)
+```
+```{r}
+# Install dan load package corrplot
+#install.packages("corrplot")
+library(corrplot)
+
+# Misalkan 'data' adalah dataset Anda
+cor_matrix <- cor(dataset)  # Menghitung matriks korelasi antar variabel
+
+# Membuat heatmap menggunakan corrplot
+corrplot(cor_matrix, method = "color", type = "upper", 
+         tl.col = "black", tl.srt = 45, 
+         title = "Correlation Matrix Heatmap", 
+         mar = c(0,0,1,0))
+
+```
+```{r}
+# Misalkan model regresi adalah lm
+model1 <- lm(KONSUMSI.RT ~ SUKU.BUNGA + NILAI.TUKAR + INFLASI+ KOMODITAS + UANG.BEREDAR, data = dataset)
+
+# Hitung VIF
+vif(model1)
+```
+```{r}
+# Misalkan model regresi adalah lm
+model2 <- lm(UANG.BEREDAR ~ SUKU.BUNGA + KOMODITAS + KONSUMSI.RT+ NILAI.TUKAR+ INFLASI, data = dataset)
+
+# Hitung VIF
+vif(model2)
+```
+
+```{r}
+# Definisikan formula untuk masing-masing persamaan
+eq1 <- KONSUMSI.RT ~ SUKU.BUNGA + NILAI.TUKAR + INFLASI+ KOMODITAS + UANG.BEREDAR
+eq2 <- UANG.BEREDAR ~ SUKU.BUNGA + KOMODITAS + KONSUMSI.RT+ NILAI.TUKAR+ INFLASI
+
+# Gabungkan persamaan menjadi satu model
+equations <- list(eq1 = eq1, eq2 = eq2)
+
+```
+
+```{r}
+# Estimasi model SUR
+sur_model <- systemfit::systemfit(equations, method = "SUR", data = dataset)
+
+
+# Summary hasil model
+summary(sur_model)
+
+```
+
+
+```{r}
+# Breusch-Pagan test untuk masing-masing persamaan
+bp_test_eq1 <- ncvTest(lm(eq1, data = dataset))  # Uji heteroskedastisitas untuk eq1
+bp_test_eq2 <- ncvTest(lm(eq2, data = dataset))  # Uji heteroskedastisitas untuk eq2
+
+print("Breusch-Pagan Test (eq1):")
+print(bp_test_eq1)
+print("Breusch-Pagan Test (eq2):")
+print(bp_test_eq2)
+
+```
+
+
+```{r}
+# Durbin-Watson Test untuk masing-masing persamaan
+dw_test_eq1 <- durbinWatsonTest(lm(eq1, data = dataset))  # Uji autokorelasi untuk eq1
+dw_test_eq2 <- durbinWatsonTest(lm(eq2, data = dataset))  # Uji autokorelasi untuk eq2
+
+print("Durbin-Watson Test (eq1):")
+print(dw_test_eq1)
+print("Durbin-Watson Test (eq2):")
+print(dw_test_eq2)
+
+```
+```{r}
+# Ambil residual dari model
+residuals <- residuals(sur_model)
+
+# Gabungkan residual dengan dataset
+dataset$residual_eq1 <- residuals$eq1
+dataset$residual_eq2 <- residuals$eq2
+
+# Plot residual
+ggplot(dataset, aes(x = 1:nrow(dataset))) +
+  geom_line(aes(y = residual_eq1, color = "eq1")) +
+  geom_line(aes(y = residual_eq2, color = "eq2")) +
+  labs(title = "Residual Plot", x = "Observation", y = "Residual") +
+  theme_minimal() +
+  scale_color_manual(values = c("eq1" = "blue", "eq2" = "red"), name = "Equation")
+
+```
+
+
+```{r}
+# Histogram residual untuk eq1
+ggplot(dataset, aes(x = residual_eq1)) +
+  geom_histogram(binwidth = 0.1, fill = "blue", alpha = 0.7) +
+  labs(title = "Histogram of Residuals (eq1)", x = "Residual", y = "Frequency") +
+  theme_minimal()
+
+# Histogram residual untuk eq2
+ggplot(dataset, aes(x = residual_eq2)) +
+  geom_histogram(binwidth = 0.1, fill = "red", alpha = 0.7) +
+  labs(title = "Histogram of Residuals (eq2)", x = "Residual", y = "Frequency") +
+  theme_minimal()
+
+```
+
+
+```{r}
+library(sandwich)
+library(lmtest)
+# Robust Standard Errors (White's)
+robust_se <- sqrt(diag(vcovHC(sur_model, type = "HC0")))  # HC0 is the White estimator
+
+# Print robust standard errors
+summary(sur_model)
+robust_se
+
+```
+
+
+```{r}
+summary(residuals$eq2)
+sum(residuals$eq2)
+
+```
+```{r}
+# Model OLS
+ols_model1 <- lm(KONSUMSI.RT ~ SUKU.BUNGA + NILAI.TUKAR + INFLASI+ KOMODITAS + UANG.BEREDAR, data = dataset)
+
+# Menampilkan hasil estimasi
+summary(ols_model1)
+```
+```{r}
+ols_model2 <- lm(UANG.BEREDAR ~ SUKU.BUNGA + KOMODITAS + KONSUMSI.RT+ NILAI.TUKAR+ INFLASI, data = dataset)
+
+# Menampilkan hasil estimasi
+summary(ols_model2)
+```
+
+
+```{r}
+
+```
+
+
+```{r}
+```
+
